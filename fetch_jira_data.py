@@ -2,7 +2,7 @@ import requests
 import json
 import os
 import logging
-from jira_config import JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN
+from conf.jira_config import JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN, OUTPUT_DIR
 
 # Configure logging
 logging.basicConfig(
@@ -42,13 +42,19 @@ def jira_fetch_and_save_all(output_dir="."):
     fetch_status_categories("jira_status_categories.json", output_dir)
     logging.info("Finished fetching all Jira data.")
 
-def get_auth():
+def get_auth_headers():
     """
-    Determine the authentication method based on the availability of JIRA_API_TOKEN.
-    If JIRA_API_TOKEN is empty, use JIRA_PASSWORD for authentication.
+    Generate headers for authentication using Personal Access Tokens.
     """
-    from jira_config import JIRA_API_TOKEN, JIRA_PASSWORD, JIRA_USERNAME
-    if JIRA_API_TOKEN:
+    from conf.jira_config import (
+        JIRA_API_TOKEN,
+        JIRA_PASSWORD,
+        JIRA_USERNAME,
+        JIRA_PERSONAL_ACCESS_TOKEN,
+    )
+    if JIRA_PERSONAL_ACCESS_TOKEN:
+        return {"Authorization": f"Bearer {JIRA_PERSONAL_ACCESS_TOKEN}"}
+    elif JIRA_API_TOKEN:
         return (JIRA_USERNAME, JIRA_API_TOKEN)
     else:
         return (JIRA_USERNAME, JIRA_PASSWORD)
@@ -113,11 +119,8 @@ def fetch_and_save(endpoint, output_file, output_dir="."):
     :param output_dir: Directory to save the output file
     """
     logging.info(f"Fetching data from endpoint: {endpoint}")
-    url = f"{JIRA_BASE_URL}/rest/api/2/{endpoint}"
-    headers = {
-        "Content-Type": "application/json"
-    }
-    auth = get_auth()  # Use the updated authentication method
+    url = f"{JIRA_BASE_URL}/rest/api/3/{endpoint}"  # Updated to use API version 3
+    headers = get_auth_headers()  # Use headers with Personal Access Token
     start_at = 0
     max_results = 50  # Jira's default page size
     all_data = []
@@ -125,7 +128,7 @@ def fetch_and_save(endpoint, output_file, output_dir="."):
     try:
         while True:
             params = {"startAt": start_at, "maxResults": max_results}
-            response = requests.get(url, headers=headers, auth=auth, params=params)
+            response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()
             data = response.json()
 
@@ -306,6 +309,6 @@ def fetch_cluster_nodes(output_file, output_dir="."):
 
 if __name__ == "__main__":
     logging.info("Starting Jira data fetch script...")
-    jira_fetch_and_save_all("jira_data")
+    jira_fetch_and_save_all(OUTPUT_DIR)
     
     logging.info("Jira data fetch script completed.")
